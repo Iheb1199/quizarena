@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -20,6 +22,9 @@ class SessionDetailScreen extends StatefulWidget {
 }
 
 class _SessionDetailScreenState extends State<SessionDetailScreen> {
+
+
+
   final _sessionService = SessionService();
   late SessionModel _session;
   bool _isActivating = false;
@@ -29,8 +34,26 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   void initState() {
     super.initState();
     _session = widget.session;
+    print('🔍 participantCount on open: ${_session.status}');
     _listenToSession();
+    _roomSub = _sessionService.listenToRoomCount(_session.id).listen((count) {
+      if (mounted) setState(() => _playersInRoom = count);
+    });
+
+
   }
+
+  StreamSubscription? _roomSub;
+  int _playersInRoom = 0;
+
+
+
+  @override
+  void dispose() {
+  _roomSub?.cancel();
+  super.dispose();
+  }
+
 
   void _listenToSession() {
     _sessionService.listenToSession(_session.id).listen((data) {
@@ -117,9 +140,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           children: [
             _infoTile('Status', _session.status.toUpperCase(), Icons.info_outline),
             const SizedBox(height: 12),
-            _infoTile('Participants', '${_session.participantCount}', Icons.people),
+            _infoTile('Participants', '${_playersInRoom}', Icons.people),
             const SizedBox(height: 12),
-            _infoTile('Questions', '${_session.questionCount}/20', Icons.quiz),
+            _infoTile('Questions', '${_session.questionCount}/10', Icons.quiz),
             const SizedBox(height: 24),
             if (_session.isPending) ...[
               PrimaryButton(
@@ -139,6 +162,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 session: _session,
                 onActivate: _activate,
                 isLoading: _isActivating,
+                playersInRoom: _playersInRoom,
               ),
             ],
             if (_session.isActive || _session.isFinished) ...[

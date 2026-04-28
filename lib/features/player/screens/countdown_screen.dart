@@ -8,11 +8,13 @@ import 'quiz_screen.dart';
 class CountdownScreen extends StatefulWidget {
   final SessionModel session;
   final String participantId;
+  final DateTime startTime;
 
   const CountdownScreen({
     super.key,
     required this.session,
     required this.participantId,
+    required this.startTime,
   });
 
   @override

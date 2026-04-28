@@ -136,6 +136,48 @@ class SessionService {
     return data;
   }
 
+  // Enter room — upsert so it's safe to call twice
+  Future<void> enterRoom({
+    required String sessionId,
+    required String playerId,
+  }) async {
+    await _supabase.from('room_presence').upsert({
+      'session_id': sessionId,
+      'player_id': playerId,
+    }, onConflict: 'session_id,player_id');
+  }
+
+  // Stream count of enrolled participants for a session
+  Stream<int> listenToParticipantCount(String sessionId) {
+    return _supabase
+        .from('participants')
+        .stream(primaryKey: ['id'])
+        .eq('session_id', sessionId)
+        .map((rows) => rows.length);
+  }
+
+// Leave room — called only when quiz ends
+  Future<void> leaveRoom({
+    required String sessionId,
+    required String playerId,
+  }) async {
+    await _supabase
+        .from('room_presence')
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('player_id', playerId);
+  }
+
+// Stream the live count of players in the room
+  Stream<int> listenToRoomCount(String sessionId) {
+    return _supabase
+        .from('participants')
+        .stream(primaryKey: ['session_id', 'player_id']) // composite PK!
+        .eq('session_id', sessionId)
+        .map((rows) => rows.length);
+  }
+
+// Already exists — keep as-is
   Future<int> getParticipantCount(String sessionId) async {
     final data = await _supabase
         .from('participants')
@@ -143,6 +185,27 @@ class SessionService {
         .eq('session_id', sessionId);
     return (data as List).length;
   }
+
+  Future<int> getRoomCount(String sessionId) async {
+    final data = await _supabase
+        .from('room_presence')
+        .select()
+        .eq('session_id', sessionId);
+    return (data as List).length;
+  }
+
+  Future<void> setQuizStartTime(String sessionId) async {
+    try {
+      final result = await _supabase.rpc('set_quiz_start_time', params: {
+        'session_id_input': sessionId,
+      });
+      print('✅ setQuizStartTime result: $result');
+    } catch (e) {
+      print('❌ setQuizStartTime error: $e');
+    }
+  }
+
+
 
 
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/question_model.dart';
 import '../models/leaderboard_entry_model.dart';
 import '../services/question_service.dart';

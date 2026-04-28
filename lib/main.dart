@@ -16,6 +16,10 @@ void main() async {
   await Supabase.initialize(
     url: SupabaseOptions.url,
     anonKey: SupabaseOptions.anonKey,
+    authOptions: FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+      autoRefreshToken: true,
+    ),
   );
 
   runApp(const QuizArenaApp());

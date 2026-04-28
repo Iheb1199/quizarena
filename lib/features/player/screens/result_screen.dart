@@ -8,6 +8,7 @@ import '../../../services/player_service.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../auth/screens/login_screen.dart';
 import '../widgets/ranking_card.dart';
+import '../../../services/session_service.dart';
 
 class ResultScreen extends StatefulWidget {
   final String sessionId;
@@ -39,8 +40,13 @@ class _ResultScreenState extends State<ResultScreen> {
     final user = context.read<AuthProvider>().user;
 
     if (user != null) {
-      final index =
-      entries.indexWhere((e) => e.playerId == user.id);
+      // ✅ Clean up room presence now that quiz is over
+      await SessionService().leaveRoom(
+        sessionId: widget.sessionId,
+        playerId: user.id,
+      );
+
+      final index = entries.indexWhere((e) => e.playerId == user.id);
       setState(() {
         _rank = index >= 0 ? index + 1 : entries.length + 1;
         _isLoading = false;
