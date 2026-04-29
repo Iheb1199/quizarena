@@ -8,13 +8,15 @@ class ActivateButton extends StatelessWidget {
   final SessionModel session;
   final VoidCallback onActivate;
   final bool isLoading;
-  final int playersInRoom; // ← add this
+  final int playersInRoom;
+  final int questionCount; // ← add this
 
   const ActivateButton({
     super.key,
     required this.session,
     required this.onActivate,
-    required this.playersInRoom, // ← add this
+    required this.playersInRoom,
+    required this.questionCount, // ← add this
     this.isLoading = false,
   });
 
@@ -23,7 +25,7 @@ class ActivateButton extends StatelessWidget {
     if (!session.isPending) return const SizedBox.shrink();
 
     String? lockReason;
-    if (session.questionCount < 10) {
+    if (questionCount < 10) { // ← use questionCount instead of session.questionCount
       lockReason = 'Need 10 questions to activate';
     } else if (playersInRoom < 2) {
       lockReason = 'Need at least 2 players in the room';

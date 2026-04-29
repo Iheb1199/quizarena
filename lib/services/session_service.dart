@@ -12,10 +12,8 @@ class SessionService {
       'label': label,
       'host_id': hostId,
       'status': 'pending',
-      'players_ready': 0,
-      'participant_count': 0, // ← initialize it
     }).select().single();
-
+  print('test creation ');
     return SessionModel.fromMap(data);
   }
 
@@ -203,6 +201,50 @@ class SessionService {
     } catch (e) {
       print('❌ setQuizStartTime error: $e');
     }
+  }
+
+  Stream<bool> listenToAllParticipantsFinished(String sessionId, int totalPlayers) {
+    return _supabase
+        .from('player_answers')
+        .stream(primaryKey: ['id'])
+        .map((rows) async {
+      // Get all question IDs for this session
+      final questions = await _supabase
+          .from('questions')
+          .select('id')
+          .eq('session_id', sessionId);
+
+      final questionIds = (questions as List)
+          .map((q) => q['id'].toString())
+          .toSet();
+
+      // Filter answers that belong to this session's questions
+      final sessionAnswers = rows.where(
+            (r) => questionIds.contains(r['question_id'].toString()),
+      ).toList();
+
+      // Count how many answers each participant has
+      final Map<String, int> countPerPlayer = {};
+      for (final row in sessionAnswers) {
+        final pid = row['participant_id'] as String;
+        countPerPlayer[pid] = (countPerPlayer[pid] ?? 0) + 1;
+      }
+
+      // Check how many participants finished all 10 questions
+      final finishedCount =
+          countPerPlayer.values.where((c) => c >= 10).length;
+
+      return finishedCount >= totalPlayers && totalPlayers >= 2;
+    })
+        .asyncMap((future) => future); // unwrap the async inside map
+  }
+
+  Stream<int> listenToQuestionCount(String sessionId) {
+    return _supabase
+        .from('questions')
+        .stream(primaryKey: ['id'])
+        .eq('session_id', sessionId)
+        .map((rows) => rows.length);
   }
 
 

@@ -25,6 +25,7 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
   }
 
   Future<void> _create() async {
+    print('test create');
     if (!_formKey.currentState!.validate()) return;
 
     final user = context.read<AuthProvider>().user;

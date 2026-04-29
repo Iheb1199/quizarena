@@ -33,10 +33,16 @@ class _QuizScreenState extends State<QuizScreen> {
   String? _selectedAnswerId;
   bool _isLocked = false; // locked after answering but timer still runs
   bool _submitted = false; // answer submitted to db
+  bool _navigating = false;
+  int _displayIndex = 0; // ← controls what the UI shows, not the provider
+  bool _waitingForOthers = false; // ← new
+  bool _navigatedToResult = false; // ← new
+
 
   @override
   void initState() {
     super.initState();
+    _displayIndex = 0;
     _initQuiz();
   }
 
@@ -54,54 +60,52 @@ class _QuizScreenState extends State<QuizScreen> {
     _submitted = false;
     _selectedAnswerId = null;
     _timer?.cancel();
+    final quiz = context.read<QuizProvider>();
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) {
-        t.cancel();
-        return;
-      }
+    if (quiz.isFinished) {
 
+      // Wait until ALL participants have finished before showing results
+      _waitForAllAndNavigate();
+    }
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) async {
+      if (!mounted) { t.cancel(); return; }
       setState(() => _secondsLeft--);
-
-      // Time ran out — submit if not already submitted
       if (_secondsLeft <= 0) {
         t.cancel();
-        _submitAnswer(null);
+        await _submitAnswer(_selectedAnswerId);
       }
     });
   }
 
   Future<void> _selectAnswer(String answerId) async {
-    // Player tapped an answer — lock UI but DON'T move to next question yet
-    // Timer keeps running until it hits 0
     if (_isLocked) return;
-
     setState(() {
       _isLocked = true;
       _selectedAnswerId = answerId;
     });
 
-    // Submit answer to DB immediately when selected
     if (!_submitted) {
       _submitted = true;
       final quiz = context.read<QuizProvider>();
       final question = quiz.currentQuestion;
       if (question == null) return;
 
-      final isCorrect =
-      question.answers.any((a) => a.id == answerId && a.isCorrect);
-
+      final isCorrect = question.answers.any((a) => a.id == answerId && a.isCorrect);
       await quiz.submitAnswer(
         answerId: answerId,
         isCorrect: isCorrect,
         secondsLeft: _secondsLeft,
       );
+
+
     }
   }
 
   Future<void> _submitAnswer(String? answerId) async {
-    // Called when timer runs out
+    if (_navigating) return; // ← prevent double navigation
+
     if (!_submitted) {
+
       _submitted = true;
       final quiz = context.read<QuizProvider>();
       final question = quiz.currentQuestion;
@@ -109,41 +113,74 @@ class _QuizScreenState extends State<QuizScreen> {
 
       bool isCorrect = false;
       if (answerId != null) {
-        isCorrect =
-            question.answers.any((a) => a.id == answerId && a.isCorrect);
+        isCorrect = question.answers.any((a) => a.id == answerId && a.isCorrect);
       }
-
-      await quiz.submitAnswer(
-        answerId: answerId,
-        isCorrect: isCorrect,
-        secondsLeft: 0,
-      );
+      try {
+        await quiz.submitAnswer(
+          answerId: answerId,
+          isCorrect: isCorrect,
+          secondsLeft: 0,
+        );
+      } catch (e) {
+        print('⚠️ submitAnswer error: $e');
+      }
     }
 
-    // Move to next question or finish
     await _nextQuestion();
   }
 
   Future<void> _nextQuestion() async {
-    if (!mounted) return;
+    print('test m fou9');
+    if (!mounted || _navigating) return;
+    print('test m louta');
+    _navigating = true;
 
     final quiz = context.read<QuizProvider>();
+    print('index quiz: ${quiz.currentIndex}');
+    print('long quiz: ${quiz.questions.length}');
 
     if (quiz.isFinished) {
-      await _sessionService.finishSession(widget.session.id);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ResultScreen(
-            sessionId: widget.session.id,
-            participantId: widget.participantId,
-          ),
-        ),
-      );
+      print('test display ');
+      _timer?.cancel();
+
+      // Wait until ALL participants have finished before showing results
+      _waitForAllAndNavigate();
     } else {
-      // Start next question timer
+      quiz.moveToNext();
+      setState(() => _displayIndex= quiz.currentIndex);
+      print(_displayIndex);
+
+      _navigating = false;
       _startTimer();
     }
+  }
+
+  void _waitForAllAndNavigate() async {
+    print('test wait ');
+    setState(() => _waitingForOthers = true);
+
+    // Fetch real participant count from the participants table
+    final totalPlayers =
+    await _sessionService.getParticipantCount(widget.session.id);
+    _sessionService
+        .listenToAllParticipantsFinished(widget.session.id, totalPlayers)
+        .listen((allDone) async {
+      if (allDone && mounted && !_navigatedToResult) {
+        print('test result finished');
+        _navigatedToResult = true;
+        await _sessionService.finishSession(widget.session.id);
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ResultScreen(
+              sessionId: widget.session.id,
+              participantId: widget.participantId,
+            ),
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -154,12 +191,37 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final quiz = context.watch<QuizProvider>();
+      final quiz = context.watch<QuizProvider>();
 
-    if (quiz.isLoading) return const LoadingIndicator();
+      if (quiz.isLoading) return const LoadingIndicator();
 
-    final question = quiz.currentQuestion;
-    if (question == null) return const SizedBox.shrink();
+      // ← show waiting screen BEFORE the null question check
+      if (_waitingForOthers) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(color: AppColors.accent),
+                const SizedBox(height: 24),
+                Text('You finished!', style: AppTypography.headingMedium),
+                const SizedBox(height: 12),
+                Text(
+                  'Waiting for other players to finish...',
+                  style: AppTypography.bodySecondary,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      final question = _displayIndex < quiz.questions.length
+          ? quiz.questions[_displayIndex]
+          : null;
+      if (question == null) return const SizedBox.shrink();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -174,7 +236,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Q${quiz.currentIndex + 1}/10',
+                    'Q${_displayIndex + 1}/10',
                     style: AppTypography.headingSmall,
                   ),
                   Text(

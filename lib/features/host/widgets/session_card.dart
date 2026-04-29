@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../models/session_model.dart';
+import '../../../services/session_service.dart';
 
 class SessionCard extends StatelessWidget {
   final SessionModel session;
@@ -61,13 +62,22 @@ class SessionCard extends StatelessWidget {
                       Icon(Icons.people,
                           size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
-                      Text('${session.participantCount}',
-                          style: AppTypography.bodySecondary),
+                      StreamBuilder<int>(
+                        stream: SessionService().listenToParticipantCount(session.id),
+                        builder: (context, snapshot) {
+                          final count = snapshot.data ?? session.participantCount;
+
+                          return Text(
+                            '$count',
+                            style: AppTypography.bodySecondary,
+                          );
+                        },
+                      ),
                       const SizedBox(width: 12),
                       Icon(Icons.quiz,
                           size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
-                      Text('${session.questionCount}/20',
+                      Text('${session.questionCount}/10',
                           style: AppTypography.bodySecondary),
                     ],
                   ),

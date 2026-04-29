@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../models/session_model.dart';
+import '../../../services/session_service.dart';
 
 class SessionJoinCard extends StatelessWidget {
   final SessionModel session;
@@ -160,10 +161,16 @@ class SessionJoinCard extends StatelessWidget {
                   const Icon(Icons.people,
                       size: 14, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
-                  Text(
-                    '${session.participantCount} joined',
-                    style: AppTypography.bodySecondary,
-                  ),
+                  StreamBuilder<int>(
+                    stream: SessionService().listenToParticipantCount(session.id),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data;
+                      return Text(
+                        '$count'+' joined',
+                        style: AppTypography.bodySecondary,
+                      );
+                    },
+                  )
                 ],
               ),
               if (isEnrolled)

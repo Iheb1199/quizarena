@@ -1,13 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../models/session_model.dart';
 import '../../../services/session_service.dart';
 import '../../../shared/widgets/primary_button.dart';
-import '../../../shared/widgets/loading_indicator.dart';
 import '../widgets/activate_button.dart';
 import 'question_editor_screen.dart';
 import 'host_leaderboard_screen.dart';
@@ -29,6 +27,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   late SessionModel _session;
   bool _isActivating = false;
   bool _isDeleting = false;
+  StreamSubscription? _questionSub;
+  int _questionCount = 0; // ← replaces _session.questionCount
 
   @override
   void initState() {
@@ -38,6 +38,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     _listenToSession();
     _roomSub = _sessionService.listenToRoomCount(_session.id).listen((count) {
       if (mounted) setState(() => _playersInRoom = count);
+    });
+
+    _questionSub = _sessionService.listenToQuestionCount(_session.id).listen((count) {
+      if (mounted) setState(() => _questionCount = count);
     });
 
 
@@ -50,8 +54,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   @override
   void dispose() {
-  _roomSub?.cancel();
-  super.dispose();
+    _roomSub?.cancel();
+    _questionSub?.cancel();
+    super.dispose();
   }
 
 
@@ -128,6 +133,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     );
   }
 
+  bool get _canActivate => _questionCount >= 10 && _playersInRoom >= 2;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,7 +149,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             const SizedBox(height: 12),
             _infoTile('Participants', '${_playersInRoom}', Icons.people),
             const SizedBox(height: 12),
-            _infoTile('Questions', '${_session.questionCount}/10', Icons.quiz),
+          _infoTile('Questions', '$_questionCount/10', Icons.quiz),
             const SizedBox(height: 24),
             if (_session.isPending) ...[
               PrimaryButton(
@@ -163,6 +170,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 onActivate: _activate,
                 isLoading: _isActivating,
                 playersInRoom: _playersInRoom,
+                questionCount: _questionCount,
               ),
             ],
             if (_session.isActive || _session.isFinished) ...[

@@ -38,6 +38,10 @@ class QuizProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void moveToNext() {
+    _currentIndex++;
+  }
+
   Future<void> submitAnswer({
     required String? answerId,
     required bool isCorrect,
@@ -55,8 +59,6 @@ class QuizProvider extends ChangeNotifier {
       isCorrect: isCorrect,
       score: _score,
     );
-
-    _currentIndex++;
     notifyListeners();
   }
 

@@ -7,7 +7,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../services/player_service.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'waiting_room_screen.dart';
-
+import '../../../services/session_service.dart';
 class JoinSessionScreen extends StatefulWidget {
   final SessionModel session;
 
@@ -87,9 +87,15 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
             Text(widget.session.label, style: AppTypography.headingMedium,
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            Text(
-              '${widget.session.participantCount} players already joined',
-              style: AppTypography.bodySecondary,
+            StreamBuilder<int>(
+              stream: SessionService().listenToParticipantCount(widget.session.id),
+              builder: (context, snapshot) {
+                final count = snapshot.data;
+                return Text(
+                  '$count'+' players already joined',
+                  style: AppTypography.bodySecondary,
+                );
+              },
             ),
             const SizedBox(height: 40),
             PrimaryButton(
